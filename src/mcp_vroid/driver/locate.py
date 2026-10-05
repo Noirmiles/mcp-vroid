@@ -129,10 +129,21 @@ def find_text(img: Image.Image | Shot, needle: str, *, exact: bool = False,
                 continue
             seen.add(key)
             found.append(m)
-    found.sort(key=lambda m: -m.conf)
+    found.sort(key=lambda m: (-m.conf, -_row_words(m, found)))
     if all_matches:
         return found
     return found[0] if found else None
+
+
+def _row_words(m: Match, found: list[Match]) -> int:
+    """How many different matched words share m's text row.
+
+    A tie-break for multi-word needles: "Head Size" hits the "Size" of
+    "Body Size" too, and an OCR engine with no per-word confidence (Windows)
+    cannot rank the two. The row holding more of the needle's words wins.
+    """
+    return len({_norm(o.text) for o in found
+                if abs(o.center[1] - m.center[1]) < 12})
 
 
 def all_text(img: Image.Image | Shot, **kw) -> list[Match]:
