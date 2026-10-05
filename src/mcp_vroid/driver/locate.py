@@ -54,9 +54,14 @@ def ocr_words(img: Image.Image | Shot, upscale: float = 2.0,
     prepped = _prep(img, upscale, invert)
     if sys.platform == "win32":
         # Windows' built-in OCR instead of the tesseract binary; same boxes.
+        from .ocr_winrt import merge_readings
         from .ocr_winrt import ocr_words as winrt_words
-        return [Match(*w) for w in winrt_words(prepped, upscale, lang)
-                if w[1] >= min_conf]
+        words = winrt_words(prepped, upscale, lang)
+        if upscale != 1.0:
+            # a second reading at native size: see merge_readings
+            words = merge_readings(
+                words, winrt_words(_prep(img, 1.0, invert), 1.0, lang))
+        return [Match(*w) for w in words if w[1] >= min_conf]
     with tempfile.TemporaryDirectory() as td:
         p = Path(td) / "ocr.png"
         prepped.save(p)
@@ -129,7 +134,8 @@ def find_text(img: Image.Image | Shot, needle: str, *, exact: bool = False,
                 continue
             seen.add(key)
             found.append(m)
-    found.sort(key=lambda m: (-m.conf, -_row_words(m, found)))
+    rows = {id(m): _row_words(m, found) for m in found}
+    found.sort(key=lambda m: (-m.conf, -rows[id(m)]))
     if all_matches:
         return found
     return found[0] if found else None

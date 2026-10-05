@@ -32,6 +32,10 @@ TABS = ("Face", "Hairstyle", "Body", "Outfit", "Accessories", "Look")
 
 
 def shot(tag: str = "") -> Shot:
+    if sys.platform == "win32":
+        # A background Unity window cannot be captured, and a flow that
+        # lost the foreground half-way would otherwise die on its next look.
+        W.ensure_focus()
     return C.grab_window(tag=tag)
 
 
@@ -297,9 +301,11 @@ def export_vrm(out_path: str | Path, avatar_name: str = "SpikeAvatar",
     # the panel as they are opened - search the whole column.
     b = L.find_button(s, region=(int(s.image.width * 0.68), 0,
                                  s.image.width, s.image.height))
-    if b is None:
+    if b is not None:
+        I.click(*b.center, space="image", shot=s)
+    elif not L.find_text(s, "Settings", exact=True):
+        # no pill and no modal over it (a re-run finds the modal still open)
         raise RuntimeError("no accent Export button on the export screen")
-    I.click(*b.center, space="image", shot=s)
 
     # "Settings" alone, and exactly: a loose "VRM Settings" also matches the
     # "VRM" of the "Export as VRM" title, i.e. before the modal is up.

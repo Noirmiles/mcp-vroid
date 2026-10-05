@@ -38,6 +38,27 @@ def words_from_result(result, upscale: float = 1.0,
     return out
 
 
+def merge_readings(first: list[tuple], second: list[tuple],
+                   tol: int = 6) -> list[tuple]:
+    """Union of two OCR passes over the same picture at different scales.
+
+    The engine misreads the odd small label at one scale and not at another
+    ("Title" comes back as "Titte" at 2x and correctly at 1x, or the other
+    way round), and it gives no confidence to choose by. So keep both: a
+    word of the second pass is dropped only when the first pass already has
+    the same text at the same place; a *different* text at the same place
+    is kept as an alternative reading for the caller's needle to match.
+    """
+    out = list(first)
+    for w in second:
+        text, _conf, left, top = w[0], w[1], w[2], w[3]
+        dup = any(o[0] == text and abs(o[2] - left) <= tol
+                  and abs(o[3] - top) <= tol for o in first)
+        if not dup:
+            out.append(w)
+    return out
+
+
 _engine = None
 _engine_lang = None
 
