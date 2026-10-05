@@ -422,6 +422,15 @@ def _set_foreground(hwnd: int) -> bool:
     finally:
         for tid in attached:
             user32.AttachThreadInput(me, tid, False)
+    if foreground() == hwnd:
+        return True
+    # Last resort, and only for VRoid's own main window: a window that is
+    # restored from minimised is given the foreground by the shell itself.
+    if _is_vroid(hwnd):
+        user32.ShowWindow(hwnd, SW_MINIMIZE)
+        time.sleep(0.3)
+        user32.ShowWindow(hwnd, SW_RESTORE)
+        time.sleep(0.5)
     return foreground() == hwnd
 
 
@@ -438,6 +447,13 @@ def focus(win: Window | None = None) -> Window:
         time.sleep(0.3)
     time.sleep(0.25)
     return find_window() or win
+
+
+def ensure_focus() -> None:
+    """Take the foreground back if something else grabbed it; a no-op (and
+    no delay) when VRoid or its save dialog already has it."""
+    if not (is_vroid_focused() or is_save_dialog_focused()):
+        focus()
 
 
 def fullscreen(win: Window | None = None) -> Window:

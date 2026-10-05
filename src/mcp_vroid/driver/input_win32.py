@@ -11,7 +11,9 @@ off. Before every injected event group:
 * fail-safe - if the cursor sits in a corner of any monitor, abort
   (FailSafeError). Shove the mouse into a corner to stop a run.
 * pointer events need VRoid Studio to be the foreground window and every
-  target point to lie inside its client rectangle;
+  target point to lie inside its client rectangle (if something else took
+  the foreground, the guard asks for it back once, then checks; it never
+  acts on a window it did not verify);
 * key events need the foreground window to be VRoid Studio, or the native
   file dialog VRoid itself opened (checked by class, title, process and
   owner - see window_win32.find_save_dialog);
@@ -185,6 +187,8 @@ def _guard_pointer(*points: tuple[float, float]) -> W.Window:
     win = W.find_window()
     if win is None:
         raise RuntimeError("refusing to act: VRoid Studio window not found")
+    if W.foreground() != win.hwnd and W.find_save_dialog(win) is None:
+        win = W.focus(win)          # one attempt to take it back, then check
     if W.foreground() != win.hwnd:
         W.assert_vroid_focused()
         raise RuntimeError("refusing to act: VRoid Studio is not the "
@@ -204,12 +208,15 @@ def _guard_keys() -> None:
     win = W.find_window()
     if win is None:
         raise RuntimeError("refusing to act: VRoid Studio window not found")
-    fg = W.foreground()
-    if fg == win.hwnd:
-        return
-    dlg = W.find_save_dialog(win)
-    if dlg is not None and fg == dlg:
-        return
+    for attempt in range(2):
+        fg = W.foreground()
+        if fg == win.hwnd:
+            return
+        dlg = W.find_save_dialog(win)
+        if dlg is not None and fg == dlg:
+            return
+        if attempt == 0:
+            W.focus(win)            # one attempt to take it back, then check
     W.assert_vroid_focused()
     raise RuntimeError("refusing to act: VRoid Studio is not the "
                        "foreground window")
@@ -240,27 +247,36 @@ def _mouse(flags: int, dx: int = 0, dy: int = 0, data: int = 0) -> _INPUT:
     return i
 
 
-def _move_abs(sx: float, sy: float) -> None:
-    """Put the real cursor on a screen pixel, and check that it got there."""
+def _move_abs(sx: float, sy: float, verify: bool = True) -> None:
+    """Put the real cursor on a screen pixel, and check that it got there.
+
+    `verify=False` is for the intermediate steps of a glide, where only the
+    motion matters; the point a button goes down on is always verified.
+    """
     tx, ty = int(round(sx)), int(round(sy))
     virt = _virtual_screen()
-    for _ in range(3):
+    for _ in range(5 if verify else 1):
         nx, ny = to_absolute(tx, ty, virt)
         _send(_mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
                      | MOUSEEVENTF_VIRTUALDESK, nx, ny))
-        time.sleep(0.004)
+        time.sleep(0.008)
         cx, cy = cursor_pos()
-        if abs(cx - tx) <= 1 and abs(cy - ty) <= 1:
+        if not verify or (abs(cx - tx) <= 1 and abs(cy - ty) <= 1):
             return
-    raise RuntimeError(f"cursor did not reach ({tx}, {ty}); it is at "
-                       f"{cursor_pos()} - something else is moving the mouse")
+    clip = wintypes.RECT()
+    user32.GetClipCursor(ctypes.byref(clip))
+    raise RuntimeError(
+        f"cursor did not reach ({tx}, {ty}); it is at {cursor_pos()} - "
+        "something else is moving the mouse, or another application has "
+        f"confined it (clip rectangle {clip.left},{clip.top},{clip.right},"
+        f"{clip.bottom}; virtual screen {virt})")
 
 
 def _glide(sx: float, sy: float, steps: int, step_ms: int) -> None:
     cx, cy = cursor_pos()
     for i in range(1, steps + 1):
         t = i / steps
-        _move_abs(cx + (sx - cx) * t, cy + (sy - cy) * t)
+        _move_abs(cx + (sx - cx) * t, cy + (sy - cy) * t, verify=i == steps)
         time.sleep(step_ms / 1000.0)
 
 
@@ -311,7 +327,8 @@ def drag(x1: float, y1: float, x2: float, y2: float, button: str = "left",
         time.sleep(0.12)
         for i in range(1, steps + 1):
             t = i / steps
-            _move_abs(ax + (bx - ax) * t, ay + (by - ay) * t)
+            _move_abs(ax + (bx - ax) * t, ay + (by - ay) * t,
+                      verify=i == steps)
             time.sleep(0.016)
         time.sleep(0.15)
     finally:
@@ -448,10 +465,8 @@ def _unicode_char(ch: str) -> None:
 
 def type_text(text: str, delay_ms: int = 22) -> None:
     """Type a literal string into the focused widget."""
-    _guard_keys()
-    for n, ch in enumerate(text):
-        if n % 8 == 0:
-            _guard_keys()          # long strings: keep checking where it goes
+    for ch in text:
+        _guard_keys()              # every character: focus can move mid-word
         if ch == "\n":
             key("Return")
             continue
