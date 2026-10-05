@@ -35,6 +35,13 @@ dependencies = [
     "opencv-python-headless>=4.9",
     "pytesseract>=0.3.10",
     "python-xlib>=0.33",
+    "winrt-runtime>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-media-ocr>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-graphics-imaging>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-storage-streams>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-globalization>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-foundation>=3.0 ; sys_platform == 'win32'",
+    "winrt-windows-foundation-collections>=3.0 ; sys_platform == 'win32'",
 ]
 
 [project.scripts]
