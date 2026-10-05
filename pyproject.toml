@@ -1,7 +1,7 @@
 [project]
 name = "mcp-vroid"
 version = "0.1.0"
-description = "Drive VRoid Studio from any MCP client - Wayland GUI automation with OCR and a virtual pointer"
+description = "Drive VRoid Studio from any MCP client - GUI automation with OCR and injected input, on Wayland (Hyprland) or Windows"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -14,6 +14,7 @@ keywords = [
     "gui-automation",
     "hyprland",
     "wayland",
+    "windows",
     "3d",
 ]
 classifiers = [
@@ -22,6 +23,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",

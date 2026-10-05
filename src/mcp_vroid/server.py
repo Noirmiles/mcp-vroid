@@ -47,9 +47,9 @@ server = MCPServer(
     name="vroid",
     version="0.1.0",
     instructions=(
-        "Drives the VRoid Studio desktop app (Steam/Proton) on Hyprland by "
-        "screenshotting it, locating widgets with OCR, and injecting real "
-        "pointer/keyboard events.\n\n"
+        "Drives the VRoid Studio desktop app (Steam; Proton on Hyprland, or "
+        "native on Windows) by screenshotting it, locating widgets with "
+        "OCR, and injecting real pointer/keyboard events.\n\n"
         "The working loop is: vroid_launch -> vroid_screenshot (LOOK at the "
         "image) -> vroid_find_text / vroid_find_button to get coordinates -> "
         "vroid_click / vroid_type -> vroid_screenshot again to confirm. Never "
@@ -504,7 +504,9 @@ SPACE_DOC = (
     "'image' = pixels of a window capture (what vroid_screenshot / "
     "vroid_find_* report - the default, and almost always what you want); "
     "'window' = Hyprland layout units relative to the window's top-left; "
-    "'layout' = absolute Hyprland layout units of the whole output."
+    "'layout' = absolute Hyprland layout units of the whole output. (On "
+    "Windows all three are plain pixels: of the capture, of the window's "
+    "client area, and of the virtual desktop.)"
 )
 
 
