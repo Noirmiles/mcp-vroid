@@ -5,13 +5,14 @@ screenshot says. Callers get the Shot back so they can Read the PNG.
 """
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
-from . import capture as C
-from . import input as I
 from . import locate as L
-from . import window as W
+from .backend import capture as C
+from .backend import input as I
+from .backend import window as W
 from .capture import Shot
 from .paths import OUT
 
@@ -53,6 +54,22 @@ def wait_for(pred, timeout: float = 30.0, poll: float = 1.0, tag: str = ""):
 def wait_for_text(needle: str, timeout: float = 30.0, region=None, **kw):
     return wait_for(lambda s: L.find_text(s, needle, region=region, **kw),
                     timeout=timeout)
+
+
+def close_vroid() -> bool:
+    """Quit VRoid Studio; False if it was not running. UNSAVED WORK IS LOST.
+
+    Only ever ends VRoid's own process - no window-manager shortcut that
+    could land on another application.
+    """
+    if W.find_window() is None:
+        return False
+    if sys.platform == "win32":
+        return W.close()
+    import subprocess
+    subprocess.run(["pkill", "-f", "VRoidStudio.exe"], capture_output=True)
+    time.sleep(5)
+    return True
 
 
 # --- screen identification --------------------------------------------------
@@ -245,21 +262,7 @@ def export_vrm(out_path: str | Path, avatar_name: str = "SpikeAvatar",
     if out_path.exists():
         out_path.unlink()
 
-    s = shot("editor-before-export")
-    _click_frac(s, *F_EXPORT_ICON)
-    time.sleep(1.5)
-
-    s, m = wait_for_text("Export", timeout=15,
-                         region=(int(s.image.width * 0.70), 0,
-                                 s.image.width, int(s.image.height * 0.2)))
-    if m is None:
-        raise RuntimeError("toolbar menu has no 'Export as VRM' entry")
-    I.click(*m.center, space="image", shot=s)
-
-    s, ok = wait_for(lambda sh: current_screen(sh) == "export_vrm",
-                     timeout=30, poll=1.5, tag="export-screen")
-    if not ok:
-        raise RuntimeError("'Export as VRM' screen never appeared")
+    s = open_export_screen()
 
     # The primary button is white-on-blue; tesseract loses it, so match the
     # button chrome instead.
@@ -307,6 +310,33 @@ def export_vrm(out_path: str | Path, avatar_name: str = "SpikeAvatar",
                 return out_path
         time.sleep(2.0)
     raise TimeoutError(f"{out_path} was never written")
+
+
+def open_export_screen() -> Shot:
+    """Editor toolbar share icon -> "Export as VRM" -> the export screen.
+
+    A no-op when that screen is already up, so a caller can open it, adjust
+    the Reduce Polygons / Materials / Texture Atlas options by hand, and then
+    run export_vrm() from there.
+    """
+    s = shot("editor-before-export")
+    if current_screen(s) == "export_vrm":
+        return s
+    _click_frac(s, *F_EXPORT_ICON)
+    time.sleep(1.5)
+
+    s, m = wait_for_text("Export", timeout=15,
+                         region=(int(s.image.width * 0.70), 0,
+                                 s.image.width, int(s.image.height * 0.2)))
+    if m is None:
+        raise RuntimeError("toolbar menu has no 'Export as VRM' entry")
+    I.click(*m.center, space="image", shot=s)
+
+    s, ok = wait_for(lambda sh: current_screen(sh) == "export_vrm",
+                     timeout=30, poll=1.5, tag="export-screen")
+    if not ok:
+        raise RuntimeError("'Export as VRM' screen never appeared")
+    return s
 
 
 def select_export_format(version: str = "1.0") -> None:
@@ -374,6 +404,8 @@ def _save_dialog(out_path: Path, timeout: float = 60.0) -> None:
     The dialog opens with the file-name field focused and its text selected,
     so typing replaces it; no click needed in the common case.
     """
+    if sys.platform == "win32":
+        return _save_dialog_native(out_path, timeout)
     win = None
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -420,7 +452,54 @@ def _save_dialog(out_path: Path, timeout: float = 60.0) -> None:
         time.sleep(2.0)
 
 
+def _save_dialog_native(out_path: Path, timeout: float = 60.0) -> None:
+    """Windows: type the path into the native Save dialog and confirm.
+
+    The dialog is a separate top-level window; W.find_save_dialog() only
+    accepts the one VRoid itself owns, and the input guard only lets keys
+    through to that one. The "File name" box opens focused with its text
+    selected, so the path replaces it; what actually landed in the box is
+    read back from the control before Return is pressed.
+    """
+    dlg = None
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        dlg = W.find_save_dialog()
+        if dlg:
+            break
+        time.sleep(1.0)
+    if dlg is None:
+        raise RuntimeError("the Windows save dialog never appeared")
+    time.sleep(1.0)
+    W.focus()                       # focuses the dialog while it is up
+
+    target = str(out_path)
+    for attempt in range(2):
+        I.clear_field()
+        I.type_text(target, delay_ms=8)
+        time.sleep(0.4)
+        if W.save_dialog_filename(dlg).strip().lower() == target.lower():
+            break
+    else:
+        raise RuntimeError(
+            "save dialog's File name box did not take the path: it holds "
+            f"{W.save_dialog_filename(dlg)!r}, wanted {target!r}")
+    I.key("Return")
+
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        if W.find_save_dialog() is None:
+            return
+        time.sleep(0.5)
+    raise RuntimeError(
+        "save dialog is still open after Return - it may be asking to "
+        "overwrite, or the folder does not exist; take a "
+        "whole-screen capture and look")
+
+
 def _save_dialog_window():
+    if sys.platform == "win32":
+        return W.find_save_dialog()
     for c in W.hyprctl_json("clients"):
         if (c.get("title") or "").strip().lower() in ("export", "save as", "save"):
             return c

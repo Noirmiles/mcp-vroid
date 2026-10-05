@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,6 +52,11 @@ def ocr_words(img: Image.Image | Shot, upscale: float = 2.0,
     if isinstance(img, Shot):
         img = img.image
     prepped = _prep(img, upscale, invert)
+    if sys.platform == "win32":
+        # Windows' built-in OCR instead of the tesseract binary; same boxes.
+        from .ocr_winrt import ocr_words as winrt_words
+        return [Match(*w) for w in winrt_words(prepped, upscale, lang)
+                if w[1] >= min_conf]
     with tempfile.TemporaryDirectory() as td:
         p = Path(td) / "ocr.png"
         prepped.save(p)
