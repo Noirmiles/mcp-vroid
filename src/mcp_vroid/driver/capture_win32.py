@@ -4,9 +4,10 @@ The Windows counterpart of capture.py (grim). Same Shot, same functions.
 
 The window itself is read with PrintWindow(PW_RENDERFULLCONTENT), which asks
 the compositor (DWM) for the window's own surface: it works for a Direct3D
-Unity window, on any monitor, and it returns VRoid's pixels even when another
-window overlaps it - so a passive screenshot never leaks somebody else's app.
-If that ever comes back empty the screen is copied instead.
+Unity window, on any monitor, and it only ever returns VRoid's pixels - so a
+passive screenshot never leaks somebody else's app. A Unity window that is
+covered or in the background can come back as an empty (flat) frame; that is
+reported as an error rather than papered over with a copy of the screen.
 
 Coordinates: the process is per-monitor DPI aware (see window_win32), so
 image pixels, screen pixels and SendInput pixels are all the same thing here
@@ -100,10 +101,16 @@ def _print_window(hwnd: int, w: int, h: int) -> Image.Image | None:
         gdi32.DeleteObject(bmp)
         gdi32.DeleteDC(mdc)
         user32.ReleaseDC(hwnd, hdc)
-    # A surface the compositor could not read comes back as flat black.
-    if img.getbbox() is None:
+    if is_blank(img):
         return None
     return img
+
+
+def is_blank(img: Image.Image) -> bool:
+    """A surface the compositor could not read comes back as one flat colour
+    (black, or white for a Unity window that is covered or in the
+    background). No real VRoid screen is a single colour."""
+    return all(lo == hi for lo, hi in img.getextrema())
 
 
 def grab_region(x: int, y: int, w: int, h: int, tag: str = "",
@@ -125,6 +132,13 @@ def grab_window(win: W.Window | None = None, tag: str = "") -> Shot:
                            "focus it first")
     img = _print_window(win.hwnd, win.w, win.h)
     if img is None:
+        # Copying the screen instead is only honest when VRoid is what is
+        # on it; otherwise the "screenshot" would be of some other app.
+        if W.foreground() != win.hwnd:
+            raise RuntimeError(
+                "VRoid Studio is in the background and Windows returned an "
+                "empty frame for it - focus it first (vroid_launch, or any "
+                "acting tool) and capture again")
         return grab_region(*win.geometry, tag=tag)
     path = next_capture_path(tag)
     img.save(path)
