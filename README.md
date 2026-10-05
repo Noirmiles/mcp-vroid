@@ -1,6 +1,6 @@
 # mcp-vroid
 
-**Drive VRoid Studio from any MCP client, on Linux/Wayland or Windows.**
+**Drive VRoid Studio from any MCP client, on Linux/Wayland or Windows 11.**
 Launch the app, look at it, find widgets in the picture, click and type, set
 parameters, and export a `.vrm` — all as MCP tools.
 
@@ -12,7 +12,7 @@ what this does — screenshot the window with `grim`, locate things with OCR and
 colour matching, and inject real pointer and keyboard events at the compositor
 level. The MCP client's model is the eyes; these tools are the hands.
 (That is the Linux stack; on Windows the same loop runs on `PrintWindow`,
-the built-in Windows OCR and `SendInput` — see [Windows](#windows).)
+the built-in Windows OCR and `SendInput` — see [Windows 11](#windows-11).)
 
 ```
    grim ──► PNG ──► tesseract / cv2 ──► (x, y) ──► virtual pointer / XTEST
@@ -63,11 +63,11 @@ for window management. On Arch:
 sudo pacman -S grim tesseract tesseract-data-eng wayland gcc pkgconf
 ```
 
-Windows needs none of the above — see [Windows](#windows).
+Windows needs none of the above — see [Windows 11](#windows-11).
 
 ## Quickstart
 
-On Linux (for Windows, skip to [Windows](#windows)):
+On Linux (for Windows, skip to [Windows 11](#windows-11)):
 
 ```bash
 git clone https://github.com/nhodges/mcp-vroid
@@ -119,7 +119,7 @@ Optional environment variables:
 | `MCP_VROID_VPOINTER` | `<checkout>/native/vpointer` | path to the pointer helper |
 | `MCP_VROID_MAX_IMAGE_PX` | `1600` | longest edge of images sent to the client (0 = never downscale) |
 
-## Windows
+## Windows 11
 
 The Windows backend drives a native VRoid Studio (Steam) with nothing but
 the operating system: Win32 for the window, `PrintWindow` for screenshots,
@@ -140,7 +140,7 @@ at 100 % display scaling, on a two-monitor desktop.
 Tesseract, `grim`, Hyprland and `native/build.sh` are **not** used on
 Windows.
 
-### Quickstart
+### Setup
 
 ```powershell
 git clone https://github.com/nhodges/mcp-vroid
